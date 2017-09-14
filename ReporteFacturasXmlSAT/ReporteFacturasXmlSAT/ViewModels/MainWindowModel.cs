@@ -151,6 +151,7 @@ namespace ReporteFacturasXmlSAT.ViewModels
                 catch (Exception e)
                 {
                     LogInUI("Ocurrio un error");
+                    LogInUI(e.Message);
                     LogInUI(e.StackTrace);
                 }
 

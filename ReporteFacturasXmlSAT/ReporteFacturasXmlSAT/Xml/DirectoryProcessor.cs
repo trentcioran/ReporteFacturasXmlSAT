@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Xml.Serialization;
-using CsvHelper;
+using DevLib.Csv;
 
 namespace ReporteFacturasXmlSAT.Xml
 {
@@ -19,39 +18,50 @@ namespace ReporteFacturasXmlSAT.Xml
 
             Log(string.Format("Encontre [{0}] archivos", files.Length));
 
-            List<ReportRecord> records = new List<ReportRecord>();
+            CsvDocument csv = new CsvDocument();
+            csv.HeaderColumns.Add("FacturaArchivo");
+            csv.HeaderColumns.Add("EmisorNombre");
+            csv.HeaderColumns.Add("EmisorRfc");
+            csv.HeaderColumns.Add("ImpuestosTotal");
+            csv.HeaderColumns.Add("ImpuestosIvaTasa");
+            csv.HeaderColumns.Add("ImpuestosIvaImporte");
+            csv.HeaderColumns.Add("TipoIngreso");
+            csv.HeaderColumns.Add("Total");
+            csv.HeaderColumns.Add("Descuento");
+            csv.HeaderColumns.Add("SubTotal");
+            csv.HeaderColumns.Add("FormaPago");
+            csv.HeaderColumns.Add("Fecha");
+
+            var data = csv.Table;
+
             XmlSerializer serializer = new XmlSerializer(typeof(Comprobante));
             foreach (string file in files)
             {
-                Log(string.Format("Procesando archivo: {0}", file));
+                Log($"Procesando archivo: {file}");
                 using (StreamReader reader = new StreamReader(file))
                 {
                     Comprobante record = (Comprobante)serializer.Deserialize(reader);
 
-                    records.Add(new ReportRecord
-                    {
-                        FacturaArchivo = Path.GetFileNameWithoutExtension(file),
-                        EmisorNombre = record.Emisor.Nombre,
-                        EmisorRfc = record.Emisor.Rfc,
-                        ImpuestosTotal = record.Impuestos.TotalImpuestosTrasladados,
-                        ImpuestosIvaTasa = GetImpuesto("IVA", record.Impuestos).Tasa,
-                        ImpuestosIvaImporte = GetImpuesto("IVA", record.Impuestos).Importe,
-                        Fecha = record.Fecha,
-                        FormaPago = record.FormaDePago,
-                        Descuento = record.Descuento,
-                        TipoIngreso = record.TipoDeComprobante,
-                        SubTotal = record.SubTotal,
-                        Total = record.Total
-                    });
+                    data.Add(new List<string>()
+                        {
+                            Path.GetFileNameWithoutExtension(file)??string.Empty,
+                            record.Emisor.Nombre??string.Empty,
+                            record.Emisor.Rfc??string.Empty,
+                            record.Impuestos.TotalImpuestosTrasladados??string.Empty,
+                            GetImpuesto("IVA", record.Impuestos).Tasa??string.Empty,
+                            GetImpuesto("IVA", record.Impuestos).Importe??string.Empty,
+                            record.Fecha??string.Empty,
+                            record.FormaDePago??string.Empty,
+                            record.Descuento??string.Empty,
+                            record.TipoDeComprobante??string.Empty,
+                            record.SubTotal??string.Empty,
+                            record.Total??string.Empty
+                        });
                 }
             }
 
             var reportPath = Path.Combine(directory, "Reporte.csv");
-            using (var stream = File.CreateText(reportPath))
-            using (var writer = new CsvWriter(stream))
-            {
-                writer.WriteRecords(records);
-            }
+            csv.Save(reportPath, true);
         }
 
         private Traslado GetImpuesto(string impuesto, Impuestos impuestos)
@@ -67,6 +77,7 @@ namespace ReporteFacturasXmlSAT.Xml
 
             Traslado imp = impuestos.Traslados
                 .Traslado
+                .Where(x => x.Impuesto != null)
                 .FirstOrDefault(x => x.Impuesto.ToLowerInvariant().Equals(impuesto.ToLowerInvariant()));
 
             if (imp == null)
